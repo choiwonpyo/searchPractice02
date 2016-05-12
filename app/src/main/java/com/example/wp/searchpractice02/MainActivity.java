@@ -23,8 +23,7 @@ import android.widget.Toast;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-//this is my love song
-//im' jnkgu
+
 //hello baby this is practice
 //fucking git
 public class MainActivity extends AppCompatActivity {
