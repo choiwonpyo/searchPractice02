@@ -4,6 +4,8 @@ import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.speech.RecognitionListener;
@@ -45,7 +47,15 @@ public class MainActivity extends AppCompatActivity {
     public EditText tempPath;//입력 받는 부분이다. SUI를 사용하기 애매할때를 대비한... 입력을 받는 곳이다.
     private Button button1;
     private int round=0;
+
+    private String[] voiceCheck;
     //
+
+    private String[] orderList={"보기","닫기","실행","이동"};
+    private String order;
+    //
+    private String object;
+
     Intent i;//시스템 콜을 요청하기위한, Intent 객체를 선언한다.
     SpeechRecognizer mRecognizer;//음성인식을 위한 SpeechRecognizer 객체를 선언한다.
 
@@ -82,6 +92,7 @@ public class MainActivity extends AppCompatActivity {
        button1.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                tempPath.setText(voiceCheck[0]);
                 if(round==0&&tempPath.getText().toString().equals("보기")){//현재 완성된 상황에선, 인식된 사운드의 텍스트 변환 값을 tempPath에 전달한다.
                     getDir(mRoot);                                         //tempPath(eidtText)에 직접 입력을 하거나, 사운드로 tempPath에 값을 전달하고... 버튼을 클릭하면?
                     round=1;
@@ -91,14 +102,20 @@ public class MainActivity extends AppCompatActivity {
                     mPath.setText("입력하세요");
                     round=0;
                 }else if(round==1){//round=1 일땐, 현재 폴더의 내용물을 보고 있는 상태다.(처음 시작은 당연히 Root) 이 상황에서 입력을 더 받는다면....
-                    mTemp=mPath.getText().toString();//mTemp에 mPath(원래의 디렉토리 경로)를 저장해 놓고.
-                    String a=mPath.getText()+"/"+tempPath.getText();//원래의 디렉토리에, 입력한(이동하려는) 폴더 이름을 추가한후.
-                    getDir(a);//목록을 불러오는 함수를 실행한다.
+                    File file=null; //File 클래스는, "위치"와 "파일 이름"(혹은 폴더 이름)으로 할당 가능.
+                    for(int i=0;i<voiceCheck.length;i++){
+                         tempPath.setText(voiceCheck[i]);
+                         file=new File(mPath.getText().toString(),tempPath.getText().toString());
+
+                        if(file.isDirectory()||file.isFile()){//file이거나 디렉토리이면 빠져나오게...
+                            break;
+                        }
+                    }
+                    fileConnection(file);
                 }
 
             }
         });
-
 
         lvFileControl.setOnItemClickListener(new AdapterView.OnItemClickListener() { //사실 이부분은, ListView에서 보여주고 있는 ArrayList의 원소중 하나를 클릭하면 반응하는 함수다.
             @Override                                                                //SUI와 CUI 기반으로 만드는 코드이므로, 나중에 삭제될 여지가 있는 부분이다.(터치해서 반응하면 그건 GUI)
@@ -112,47 +129,87 @@ public class MainActivity extends AppCompatActivity {
                         Toast.makeText(mContext, "No files in this folder.", Toast.LENGTH_SHORT).show();
                     }
                 } else {
-                    mFileName = file.getName();
-                    Toast.makeText(getApplicationContext(),"이것은 파일입니다.",Toast.LENGTH_SHORT).show();
-                    // Log.i("Test", "ext: " + mFileName.substring(mFileName.lastIndexOf('.') + 1, mFileName.length()));
-
+                    fileConnection(file);
                 }
             }
         });
+    }//여기까지가 전부 onCreate 함수 내에서 정의되는 것들.
+
+
+
+
+
+
+
+
+    //==========================================파일 관련.
+    public static String getExtension(String fileStr) {
+        return fileStr.substring(fileStr.lastIndexOf(".") + 1, fileStr.length());
     }
-    public void onButton2Clicked(View v){//이 onButton2Clicked가 음성인식 이미지 버튼에 연동되는 함수다.
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {//RECORD_AUDIO의 권한을 얻는다. 한번 얻으면, if문이 걸러진다.
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.RECORD_AUDIO)) {//퍼미션 설명을 해주고
-                Toast.makeText(this, "for RECORD_AUDO permission needed", Toast.LENGTH_SHORT).show();
-            } else {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_CODE_RECORD_AUDIO);//requestPermissions를 해준다.
-                //전달 값 중 String[]부분은, 요구하는 접근권한의 목록을 담는 배열이다.(동시에 여러개의 Permission을 요구할수 있다.)
-                //여기선, String[]에 RECORD_AUDIO에 관한 퍼미션만 요구하고, 요구할 때의 상황코드를 전달한다.(이 전달 값은 위에서 constant 변수로 선언해 놓았다.)
+    private void fileConnection(File file){
+
+            if (file.isDirectory()) {//일단 할당된 것이 "폴더"일 경우.
+                if (file.canRead()){
+                    mTemp=mPath.getText().toString();//mTemp에 mPath(원래의 디렉토리 경로)를 저장해 놓고.
+                    String a=mPath.getText()+"/"+tempPath.getText();//원래의 디렉토리에, 입력한(이동하려는) 폴더 이름을 추가한후.
+                    getDir(a);//목록을 불러오는 함수를 실행한다.
+                }
+                else {
+                    Toast.makeText(mContext, "No files in this folder.", Toast.LENGTH_SHORT).show();
+                }
+            } else if(file.isFile()){
+                mFileName = file.getName();
+                // TODO Auto-generated method stub
+                Intent fileLinkIntent = new Intent(Intent.ACTION_VIEW);
+                fileLinkIntent.addCategory(Intent.CATEGORY_DEFAULT);//카테고리를 사용할 거란것을 명시.
+                fileLinkIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);//새로운 Task에 Activity를 띄우겠다...
+                String fileExtend =file.getAbsolutePath().substring(file.getAbsolutePath().lastIndexOf(".")+1);
+                // 파일 확장자 별로 mime type 지정해 준다.
+                if (fileExtend.equalsIgnoreCase("mp3")) {
+                    fileLinkIntent.setDataAndType(Uri.fromFile(file), "audio/*");//audio 카테고리로 설정.
+                } else if (fileExtend.equalsIgnoreCase("mp4")) {
+                    fileLinkIntent.setDataAndType(Uri.fromFile(file), "vidio/*");//video파일인 경우,video 카테고리 추가.
+                } else if (fileExtend.equalsIgnoreCase("jpg")
+                        || fileExtend.equalsIgnoreCase("jpeg")
+                        || fileExtend.equalsIgnoreCase("gif")
+                        || fileExtend.equalsIgnoreCase("png")
+                        || fileExtend.equalsIgnoreCase("bmp")) {
+                    fileLinkIntent.setDataAndType(Uri.fromFile(file), "image/*");
+                } else if (fileExtend.equalsIgnoreCase("txt")) {
+                    fileLinkIntent.setDataAndType(Uri.fromFile(file), "text/*");
+                } else if (fileExtend.equalsIgnoreCase("doc")
+                        || fileExtend.equalsIgnoreCase("docx")) {
+                    fileLinkIntent.setDataAndType(Uri.fromFile(file), "application/msword");
+                } else if (fileExtend.equalsIgnoreCase("xls")
+                        || fileExtend.equalsIgnoreCase("xlsx")) {
+                    fileLinkIntent.setDataAndType(Uri.fromFile(file),
+                            "application/vnd.ms-excel");
+                } else if (fileExtend.equalsIgnoreCase("ppt")
+                        || fileExtend.equalsIgnoreCase("pptx")) {
+                    fileLinkIntent.setDataAndType(Uri.fromFile(file),
+                            "application/vnd.ms-powerpoint");
+                } else if (fileExtend.equalsIgnoreCase("pdf")) {
+                    fileLinkIntent.setDataAndType(Uri.fromFile(file), "application/pdf");
+                } else if (fileExtend.equalsIgnoreCase("hwp")) {
+                    fileLinkIntent.setDataAndType(Uri.fromFile(file),
+                            "application/haansofthwp");
+                }
+                PackageManager pm = getApplicationContext().getPackageManager();
+                List<ResolveInfo> list = pm.queryIntentActivities(fileLinkIntent,
+                        PackageManager.GET_META_DATA);
+                //PackageMamager의 queryIntentActivities(intent,?);는 intent의 action과 category에 해당하는 모든 APP 목록을 얻어온다.
+                if (list.size() == 0) {
+                    Toast.makeText(getApplicationContext(), mFileName + "을 확인할 수 있는 앱이 설치되지 않았습니다.",
+                            Toast.LENGTH_SHORT).show();
+                } else {
+                    getApplicationContext().startActivity(fileLinkIntent);
+                }
+            }else{
+                Toast.makeText(getApplicationContext(),"이런건 아예 없습니다.",Toast.LENGTH_SHORT).show();
             }
-        }
-        mRecognizer.startListening(i);
+
     }
 
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {//퍼미션을 요구한뒤, 사용자의 응답이 전해졌을때의 반응이다.
-        switch(requestCode){
-            case REQUEST_CODE_EXTERNAL_READ://처음 실행될 때, 저장소를 읽는 권한을 얻는 경우.
-                if(grantResults[0]==PackageManager.PERMISSION_GRANTED){//permission Success
-                    break;//일단 허락을 받았으니 아무 상관 없다.
-                }else{
-                    Toast.makeText(this,"permissionDeny",Toast.LENGTH_SHORT).show();//허락 못받으면 일단 못받았다고 알려는 준다.
-                    break;
-                }
-            case REQUEST_CODE_RECORD_AUDIO://음성인식 버튼을 눌렀을 때, 이 어플에서 음성인식을 처음 시도할때....
-                if(grantResults[0]==PackageManager.PERMISSION_GRANTED){//허락을 받았으니 아무 상관 없다.
-                    break;
-                }else{
-                    Toast.makeText(this,"permissionDeny",Toast.LENGTH_SHORT).show();//못 받았으면 못받았다고 말한다.
-                    break;
-                }
-        }
-    }
 
     //dirPath로 넘겨진 경로값을 기준으로,File(Directory)의 이름과 경로에 관련된 ArrayList를 만들어 ListView에 삽입해 보여주는 함수.
     private void getDir(String dirPath){
@@ -203,6 +260,24 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+
+
+    //===================================================================================================음성인식에 관련된 함수들.
+    public void onButton2Clicked(View v){//이 onButton2Clicked가 음성인식 이미지 버튼에 연동되는 함수다.
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {//RECORD_AUDIO의 권한을 얻는다. 한번 얻으면, if문이 걸러진다.
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.RECORD_AUDIO)) {//퍼미션 설명을 해주고
+                Toast.makeText(this, "for RECORD_AUDO permission needed", Toast.LENGTH_SHORT).show();
+            } else {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_CODE_RECORD_AUDIO);//requestPermissions를 해준다.
+                //전달 값 중 String[]부분은, 요구하는 접근권한의 목록을 담는 배열이다.(동시에 여러개의 Permission을 요구할수 있다.)
+                //여기선, String[]에 RECORD_AUDIO에 관한 퍼미션만 요구하고, 요구할 때의 상황코드를 전달한다.(이 전달 값은 위에서 constant 변수로 선언해 놓았다.)
+            }
+        }
+        mRecognizer.startListening(i);
+
+    }
+
+
     private RecognitionListener listener=new RecognitionListener() {
         @Override
         public void onReadyForSpeech(Bundle params) {//굳이 필요 없을듯해서 비웠다.
@@ -246,10 +321,11 @@ public class MainActivity extends AppCompatActivity {
             String key = "";//일단 "key"를 초기화하고(아무 값으로)
             key = SpeechRecognizer.RESULTS_RECOGNITION;
             ArrayList<String> mResult = results.getStringArrayList(key);//mResult라는 <String> 리스트에다 음성인식 결과 값들을 담는다.
-            String[] rs = new String[mResult.size()];//이번엔 진짜 String, 문자열 배열을 음성인식 결과의 길이(만약 헬로! 라고 말했으면, 헬로 핼로 할로 이렇게 세개가 비슷하다고 하면..mResult의 길이는 3이다.)
-            mResult.toArray(rs);                     //만큼 만들고... mResult(음성인식 결과를 담은 ArrayList)의 값들을 이 길이만큼 생성한 rs, String 배열에 넣어준다.
-            tempPath.setText(""+rs[0]);              //이 헬로 핼로 할로 중 가장 근접하다 생각되는 것일수록 앞쪽 배열에 입력 되기 때문에, rs[0]이라 하면 가장 근접하다 생각되는 값이다.
-                                                      //이 rs[0]값으로 tempPath값을 설정한다.
+            voiceCheck = new String[mResult.size()];//이번엔 진짜 String, 문자열 배열을 음성인식 결과의 길이(만약 헬로! 라고 말했으면, 헬로 핼로 할로 이렇게 세개가 비슷하다고 하면..mResult의 길이는 3이다.)
+            mResult.toArray(voiceCheck);                     //만큼 만들고... mResult(음성인식 결과를 담은 ArrayList)의 값들을 이 길이만큼 생성한 rs, String 배열에 넣어준다.
+
+            tempPath.setText("입력 완료");              //이 헬로 핼로 할로 중 가장 근접하다 생각되는 것일수록 앞쪽 배열에 입력 되기 때문에, rs[0]이라 하면 가장 근접하다 생각되는 값이다.
+                                                     //이 rs[0]값으로 tempPath값을 설정한다.
         }
 
         @Override
@@ -263,4 +339,28 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+
+
+    //퍼미션 관련
+
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {//퍼미션을 요구한뒤, 사용자의 응답이 전해졌을때의 반응이다.
+        switch(requestCode){
+            case REQUEST_CODE_EXTERNAL_READ://처음 실행될 때, 저장소를 읽는 권한을 얻는 경우.
+                if(grantResults[0]==PackageManager.PERMISSION_GRANTED){//permission Success
+                    break;//일단 허락을 받았으니 아무 상관 없다.
+                }else{
+                    Toast.makeText(this,"permissionDeny",Toast.LENGTH_SHORT).show();//허락 못받으면 일단 못받았다고 알려는 준다.
+                    break;
+                }
+            case REQUEST_CODE_RECORD_AUDIO://음성인식 버튼을 눌렀을 때, 이 어플에서 음성인식을 처음 시도할때....
+                if(grantResults[0]==PackageManager.PERMISSION_GRANTED){//허락을 받았으니 아무 상관 없다.
+                    break;
+                }else{
+                    Toast.makeText(this,"permissionDeny",Toast.LENGTH_SHORT).show();//못 받았으면 못받았다고 말한다.
+                    break;
+                }
+        }
+    }
 }
